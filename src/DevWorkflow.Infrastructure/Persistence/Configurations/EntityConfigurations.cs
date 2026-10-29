@@ -114,6 +114,7 @@ internal sealed class ExecutionConfiguration : IEntityTypeConfiguration<Executio
         builder.ToTable("executions");
         builder.HasKey(e => e.Id);
         builder.Property(e => e.ExecutorId).HasMaxLength(200);
+        builder.Property(e => e.ClaimedBy).HasMaxLength(200);
         builder.Property(e => e.Branch).HasMaxLength(300);
         builder.Property(e => e.WorktreePath).HasMaxLength(1000);
         builder.Property(e => e.Version).IsConcurrencyToken();

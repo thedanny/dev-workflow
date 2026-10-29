@@ -13,6 +13,7 @@ public class RemoteUrlTests
     [InlineData("https://user@github.com/example-org/sample-api.git/")]
     [InlineData("ssh://git@github.com/example-org/sample-api.git")]
     [InlineData("ssh://git@github.com:22/example-org/sample-api.git")]
+    [InlineData("github.com/example-org/sample-api")]
     public void Ssh_and_https_forms_of_the_same_remote_normalize_equal(string remote)
     {
         Assert.Equal("github.com/example-org/sample-api", RemoteUrl.Normalize(remote));

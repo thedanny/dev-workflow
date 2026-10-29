@@ -3,6 +3,10 @@
     <ProjectReference Include="..\DevWorkflow.Application\DevWorkflow.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Authentication shared by the Api and Mcp hosts. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="DevWorkflow.Tests" />
   </ItemGroup>
   <ItemGroup>

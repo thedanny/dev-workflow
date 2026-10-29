@@ -25,6 +25,14 @@ public static partial class RemoteUrl
             return Canonical(uri.Host, uri.AbsolutePath, remote);
         }
 
+        // The canonical form itself, host/owner/name, so values returned by the API can be passed back in.
+        if (!value.Contains("://", StringComparison.Ordinal)
+            && Uri.TryCreate("https://" + value, UriKind.Absolute, out var bare)
+            && bare.Host.Contains('.', StringComparison.Ordinal))
+        {
+            return Canonical(bare.Host, bare.AbsolutePath, remote);
+        }
+
         throw new DomainException("invalid_remote_url", $"'{remote}' is not a recognizable git remote URL.");
     }
 

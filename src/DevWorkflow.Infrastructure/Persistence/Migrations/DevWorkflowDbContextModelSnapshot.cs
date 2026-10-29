@@ -83,6 +83,12 @@ namespace DevWorkflow.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("branch");
 
+                    b.Property<string>("ClaimedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("claimed_by");
+
                     b.Property<DateTimeOffset?>("EndedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ended_at");

@@ -1,3 +1,4 @@
+using DevWorkflow.Application.Abstractions;
 using DevWorkflow.Domain.Audit;
 using DevWorkflow.Domain.Executions;
 using DevWorkflow.Domain.PullRequests;
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DevWorkflow.Infrastructure.Persistence;
 
-public sealed class DevWorkflowDbContext(DbContextOptions<DevWorkflowDbContext> options) : DbContext(options)
+public sealed class DevWorkflowDbContext(DbContextOptions<DevWorkflowDbContext> options) : DbContext(options), IDevWorkflowDb
 {
     public DbSet<CodeRepository> Repositories => Set<CodeRepository>();
 
@@ -29,6 +30,8 @@ public sealed class DevWorkflowDbContext(DbContextOptions<DevWorkflowDbContext> 
         // Store enums by name so the database stays readable and reordering members is safe.
         configurationBuilder.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
     }
+
+    public void DiscardChanges() => ChangeTracker.Clear();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

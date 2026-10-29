@@ -1,4 +1,8 @@
+using DevWorkflow.Application;
+using DevWorkflow.Application.Services;
 using DevWorkflow.Infrastructure.Persistence;
+using DevWorkflow.Infrastructure.Security;
+using DevWorkflow.Mcp.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,10 +12,24 @@ var connectionString = builder.Configuration.GetConnectionString(PersistenceServ
         "Set ConnectionStrings__DevWorkflow.");
 
 builder.Services.AddDevWorkflowPersistence(connectionString);
+builder.Services.AddDevWorkflowApplication();
+builder.Services.AddDevWorkflowAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks().AddDbContextCheck<DevWorkflowDbContext>("database");
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .AddAuthorizationFilters()
+    .WithTools<SignalTools>(WorkflowJson.Options)
+    .WithTools<WorkItemTools>(WorkflowJson.Options)
+    .WithTools<ExecutorTools>(WorkflowJson.Options);
 
 var app = builder.Build();
 
-app.MapHealthChecks("/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapMcp("/mcp");
 
 app.Run();

@@ -1,0 +1,4 @@
+[*.cs]
+# Tool parameters are snake_case on purpose: their names become the MCP tool's argument names,
+# matching the contract in docs/phase1-spec.md and the HTTP API.
+dotnet_diagnostic.CA1707.severity = none

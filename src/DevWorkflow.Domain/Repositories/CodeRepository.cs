@@ -1,8 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace DevWorkflow.Domain.Repositories;
 
 public enum RepositoryProvider
 {
+    [JsonStringEnumMemberName("github")]
     GitHub,
+
+    [JsonStringEnumMemberName("bitbucket")]
     Bitbucket,
 }
 
