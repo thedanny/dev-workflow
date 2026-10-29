@@ -13,7 +13,7 @@ Build a .NET 10 API, PostgreSQL persistence, and an MCP gateway. A human launche
 
 Read [the Phase 1 specification](docs/phase1-spec.md) and [implementation prompt](docs/build-prompt.md).
 
-## Planned layout
+## Layout
 ```
 src/
   DevWorkflow.Api/
@@ -28,7 +28,7 @@ docs/
   build-prompt.md
   architecture.md
 ```
-The source directories are proposed, not implemented.
+The solution is scaffolded; see AGENTS.md for build and test commands.
 
 ## Safety
 Agents get least-privilege repository access; production credentials and deployment permissions stay outside the development executor. Require explicit human authorization for release.

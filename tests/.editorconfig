@@ -1,0 +1,3 @@
+[*.cs]
+# Test names use underscores for readability, e.g. Claim_fails_when_lease_is_held.
+dotnet_diagnostic.CA1707.severity = none

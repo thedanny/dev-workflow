@@ -4,22 +4,38 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-This repository is **documentation only**. No source code, solution file, build, or test commands exist yet. The `src/` and `tests/` layout in README.md is proposed, not implemented. Before scaffolding anything, read in this order:
+Milestone 1 is done. The .NET 10 solution is scaffolded with Domain, Application, Infrastructure, Api, Mcp and Tests projects. Api and Mcp are empty hosts that only expose `/health`. There is no domain model, persistence, or MCP tooling yet. Before adding features, read in this order:
 
-1. `README.md` – goals and planned layout
-2. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
-3. `docs/architecture.md` – runtime separation, approval policy, extensibility
-4. `docs/build-prompt.md` – the milestone-ordered implementation handoff
+1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
+2. `docs/architecture.md` – runtime separation, approval policy, extensibility
+3. `docs/build-prompt.md` – the milestone-ordered implementation handoff
 
-When code is added, update this file with the real build/test/migration commands.
+## Commands
+
+```sh
+dotnet build DevWorkflow.slnx        # build everything; warnings are errors
+dotnet test DevWorkflow.slnx         # run all tests
+dotnet test DevWorkflow.slnx --filter "FullyQualifiedName~ProjectLayeringTests"   # run one test class
+dotnet run --project src/DevWorkflow.Api   # API on http://localhost:5080
+dotnet run --project src/DevWorkflow.Mcp   # MCP host on http://localhost:5081
+```
+
+Add migration and Docker Compose commands here when those milestones land.
+
+## Solution conventions
+
+- Shared compiler settings live in `Directory.Build.props`: net10.0, nullable, latest analyzers, warnings as errors. Keep project files minimal.
+- Package versions are central in `Directory.Packages.props`. Add a `PackageVersion` there and a versionless `PackageReference` in the project.
+- `nuget.config` clears machine-level feeds and uses only nuget.org, so the public repo never depends on private package sources.
+- `global.json` pins the SDK to 10.0.x.
+- Dependency direction is Domain, then Application, then Infrastructure, with Api and Mcp on top. Api and Mcp never reference each other. `ProjectLayeringTests` enforces this from the project files and fails if a new `src/` project has no rule.
+- Test names may use underscores; `tests/.editorconfig` relaxes that one analyzer rule for tests only.
 
 ## What is being built
 
 A provider-neutral, agent-assisted development platform. Phase 1 is the **development queue, MCP gateway, and signal intake interface**. The listeners that feed intake and the evaluator that reads it come later.
 
 Planned stack: .NET 10, PostgreSQL, Docker Compose, MCP server, GitHub and Bitbucket adapters.
-
-Planned projects: `DevWorkflow.Domain`, `.Application`, `.Infrastructure`, `.Api`, `.Mcp`, and `tests/DevWorkflow.Tests`.
 
 Implementation milestones (from `docs/build-prompt.md`): scaffold solution → Postgres persistence/migrations → authenticated API + MCP tools → GitHub/Bitbucket adapters behind interfaces (mock remotes in tests) → Docker Compose + `.env.example` + seeding → reusable local Claude Code skill (and Codex equivalent) → demonstrate the acceptance tests in `docs/phase1-spec.md`.
 
