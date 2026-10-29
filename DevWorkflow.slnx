@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DevWorkflow.Api/DevWorkflow.Api.csproj" />
+    <Project Path="src/DevWorkflow.Application/DevWorkflow.Application.csproj" />
+    <Project Path="src/DevWorkflow.Domain/DevWorkflow.Domain.csproj" />
+    <Project Path="src/DevWorkflow.Infrastructure/DevWorkflow.Infrastructure.csproj" />
+    <Project Path="src/DevWorkflow.Mcp/DevWorkflow.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DevWorkflow.Tests/DevWorkflow.Tests.csproj" />
+  </Folder>
+</Solution>
