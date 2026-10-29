@@ -2,4 +2,11 @@
   <ItemGroup>
     <ProjectReference Include="..\DevWorkflow.Domain\DevWorkflow.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Provider-neutral EF Core: services query through IDevWorkflowDb; Npgsql stays in Infrastructure. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DevWorkflow.Tests" />
+  </ItemGroup>
 </Project>

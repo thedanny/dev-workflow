@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestones 1 and 2 are done. The solution has a domain model and PostgreSQL persistence with migrations. Api and Mcp are hosts that only expose `/health`, which includes a database check. There are no API endpoints, MCP tools, or application services yet. Before adding features, read in this order:
+Milestones 1 to 3 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, and an MCP server at `/mcp` with the same operations as tools. Repository adapters, Docker Compose, seeding and the local agent skill come next. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -25,6 +25,31 @@ dotnet ef database update --project src/DevWorkflow.Infrastructure --startup-pro
 ```
 
 The hosts and `dotnet ef` read the `ConnectionStrings__DevWorkflow` environment variable. In Development they fall back to a local database at `localhost:5432` with database, user and password all `devworkflow`. Add Docker Compose commands here when that milestone lands.
+
+### API keys
+
+Every endpoint except `/health` needs `Authorization: Bearer <key>`. Each key has one role: `Listener`, `Evaluator`, `Executor` or `Approver`. Configuration holds only the SHA-256 hash of each key, never the key itself:
+
+```sh
+KEY=$(openssl rand -hex 32)
+HASH=$(printf %s "$KEY" | sha256sum | cut -d' ' -f1)
+export Authentication__ApiKeys__0__Name=local-executor
+export Authentication__ApiKeys__0__Role=Executor
+export Authentication__ApiKeys__0__KeyHash=$HASH
+```
+
+Both hosts must be given the same key list. With no keys configured, every authenticated request returns 401.
+
+## Application conventions
+
+- The API and MCP are thin. All rules live in the application services under `src/DevWorkflow.Application/Services`, which both hosts call. Add an operation there first, then expose it in `Endpoints.cs` and in a tool class under `src/DevWorkflow.Mcp/Tools`.
+- Services take a `Caller` and check its role themselves. Hosts also put a role attribute on each endpoint and tool, which hides tools a credential cannot use. Keep both in sync.
+- Expected failures throw `WorkflowException` or `DomainException` with a stable snake_case code. `WorkflowError.From` classifies them. The API returns a problem response with a `code` field, and MCP returns `{"error":{"kind","code","message"}}` with `isError` set.
+- Executor operations are scoped twice: by the executor's repository, given as a key or any form of git remote URL, and by `Execution.ClaimedBy`, the credential that made the claim.
+- Claims race safely. A stale version or the one-active-execution index turns into `already_claimed`. A retried claim by the same credential and executor ID returns the existing execution.
+- Signals are redacted on the server before storage by `SignalRedactor`, which removes common secrets and email addresses.
+- JSON is snake_case everywhere, including enum values such as `pr_ready`, through `WorkflowJson`. MCP tool parameters are snake_case C# parameter names for the same reason.
+- The API host runs `LeaseExpiryWorker`, which requeues work whose lease expired. `Leases__SweepIntervalSeconds` sets the interval, and 0 disables it. Claims also expire a stale lease inline.
 
 ## Solution conventions
 

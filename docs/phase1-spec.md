@@ -36,12 +36,22 @@ Provide authenticated equivalents of:
 - list_signals(status, source_type, limit)
 - propose_work_item(title, description, repository, signal_ids, acceptance_criteria, priority, risk)
 - list_approved_work(repository, limit, filters), where repository is required
-- get_work_item(id)
+- get_work_item(id, repository), where executors must pass their repository and can only read work routed to it
 - claim_work_item(id, executor_id, repository, lease_seconds), rejected if the repository does not match the work item
 - heartbeat_execution(execution_id)
 - update_execution(execution_id, state, summary, evidence)
 - report_pull_request(execution_id, provider, url, branch, checks)
 - release_claim(execution_id, reason)
+
+Triage, authorization and the repository registry, needed to route and approve work:
+- resolve_signal(signal_id, status, reason), marking a signal evaluated or discarded
+- list_work_items(status, repository, limit)
+- route_work_item(id, repository)
+- approve_work_item(id, reason, scope), reject_work_item(id, reason)
+- requeue_work_item(id, reason) to return Blocked work to the queue, and cancel_work_item(id, reason)
+- register_repository(key, provider, remote_url, default_branch) and list_repositories()
+
+Each operation is limited to the roles in Signal intake. An executor can only act on executions its own credential claimed. A retried claim by the same credential and executor ID returns the existing execution instead of a conflict.
 
 Return structured validation and conflict errors. Never expose secrets in responses.
 

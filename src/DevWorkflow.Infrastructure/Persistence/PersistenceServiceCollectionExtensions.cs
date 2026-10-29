@@ -1,5 +1,7 @@
+using DevWorkflow.Application.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DevWorkflow.Infrastructure.Persistence;
 
@@ -12,7 +14,8 @@ public static class PersistenceServiceCollectionExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         services.AddDbContext<DevWorkflowDbContext>(options => Configure(options, connectionString));
-        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<IDevWorkflowDb>(provider => provider.GetRequiredService<DevWorkflowDbContext>());
+        services.TryAddSingleton(TimeProvider.System);
 
         return services;
     }

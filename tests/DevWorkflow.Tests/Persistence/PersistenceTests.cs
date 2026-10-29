@@ -81,7 +81,7 @@ public class PersistenceTests(PostgresFixture database)
     {
         var itemId = await SeedApprovedWorkItemAsync();
 
-        var first = Execution.Start(itemId, "executor-1", Lease, TestData.Now);
+        var first = Execution.Start(itemId, "executor-1", "test-client", Lease, TestData.Now);
         await using (var db = database.CreateContext())
         {
             db.Executions.Add(first);
@@ -90,7 +90,7 @@ public class PersistenceTests(PostgresFixture database)
 
         await using (var db = database.CreateContext())
         {
-            db.Executions.Add(Execution.Start(itemId, "executor-2", Lease, TestData.Now));
+            db.Executions.Add(Execution.Start(itemId, "executor-2", "test-client", Lease, TestData.Now));
             var error = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
             Assert.Equal(UniqueViolation, Assert.IsType<PostgresException>(error.InnerException).SqlState);
         }
@@ -100,7 +100,7 @@ public class PersistenceTests(PostgresFixture database)
         {
             var held = await db.Executions.SingleAsync(e => e.Id == first.Id);
             held.Release("handing off", TestData.Now.AddMinutes(1));
-            db.Executions.Add(Execution.Start(itemId, "executor-2", Lease, TestData.Now.AddMinutes(1)));
+            db.Executions.Add(Execution.Start(itemId, "executor-2", "test-client", Lease, TestData.Now.AddMinutes(1)));
             await db.SaveChangesAsync();
         }
     }

@@ -6,6 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit" />
@@ -20,6 +22,8 @@
     <ProjectReference Include="..\..\src\DevWorkflow.Domain\DevWorkflow.Domain.csproj" />
     <ProjectReference Include="..\..\src\DevWorkflow.Application\DevWorkflow.Application.csproj" />
     <ProjectReference Include="..\..\src\DevWorkflow.Infrastructure\DevWorkflow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\DevWorkflow.Api\DevWorkflow.Api.csproj" />
+    <ProjectReference Include="..\..\src\DevWorkflow.Mcp\DevWorkflow.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

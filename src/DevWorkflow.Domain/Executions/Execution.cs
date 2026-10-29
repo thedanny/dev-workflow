@@ -21,13 +21,18 @@ public sealed class Execution
     private Execution()
     {
         ExecutorId = string.Empty;
+        ClaimedBy = string.Empty;
     }
 
     public Guid Id { get; private set; }
 
     public Guid WorkItemId { get; private set; }
 
+    /// <summary>The executor's self-reported identity, such as <c>laptop-claude-1</c>.</summary>
     public string ExecutorId { get; private set; }
+
+    /// <summary>The authenticated client that made the claim. Only this client may act on the execution.</summary>
+    public string ClaimedBy { get; private set; }
 
     public ExecutionState State { get; private set; }
 
@@ -49,9 +54,10 @@ public sealed class Execution
 
     public int Version { get; private set; }
 
-    public static Execution Start(Guid workItemId, string executorId, TimeSpan lease, DateTimeOffset now)
+    public static Execution Start(Guid workItemId, string executorId, string claimedBy, TimeSpan lease, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executorId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimedBy);
         ValidateLease(lease);
 
         return new Execution
@@ -59,6 +65,7 @@ public sealed class Execution
             Id = Guid.CreateVersion7(now),
             WorkItemId = workItemId,
             ExecutorId = executorId.Trim(),
+            ClaimedBy = claimedBy,
             State = ExecutionState.Active,
             StartedAt = now,
             LastHeartbeatAt = now,
@@ -79,14 +86,21 @@ public sealed class Execution
         Version++;
     }
 
-    public void RecordWorkspace(string branch, string worktreePath, DateTimeOffset now)
+    /// <summary>Records the branch and/or worktree in use. Blank values leave the current value unchanged.</summary>
+    public void RecordWorkspace(string? branch, string? worktreePath, DateTimeOffset now)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(branch);
-        ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
         EnsureActive(now);
 
-        Branch = branch.Trim();
-        WorktreePath = worktreePath.Trim();
+        if (!string.IsNullOrWhiteSpace(branch))
+        {
+            Branch = branch.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(worktreePath))
+        {
+            WorktreePath = worktreePath.Trim();
+        }
+
         Version++;
     }
 

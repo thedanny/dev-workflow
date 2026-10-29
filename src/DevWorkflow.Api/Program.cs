@@ -1,4 +1,8 @@
+using DevWorkflow.Api;
+using DevWorkflow.Application;
+using DevWorkflow.Application.Services;
 using DevWorkflow.Infrastructure.Persistence;
+using DevWorkflow.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,10 +12,23 @@ var connectionString = builder.Configuration.GetConnectionString(PersistenceServ
         "Set ConnectionStrings__DevWorkflow.");
 
 builder.Services.AddDevWorkflowPersistence(connectionString);
+builder.Services.AddDevWorkflowApplication();
+builder.Services.AddDevWorkflowAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks().AddDbContextCheck<DevWorkflowDbContext>("database");
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<WorkflowExceptionHandler>();
+builder.Services.ConfigureHttpJsonOptions(options => WorkflowJson.Configure(options.SerializerOptions));
+builder.Services.Configure<LeaseExpiryOptions>(builder.Configuration.GetSection(LeaseExpiryOptions.SectionName));
+builder.Services.AddHostedService<LeaseExpiryWorker>();
 
 var app = builder.Build();
 
-app.MapHealthChecks("/health");
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapDevWorkflowApi();
 
 app.Run();

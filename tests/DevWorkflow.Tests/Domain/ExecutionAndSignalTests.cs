@@ -12,7 +12,7 @@ public class ExecutionTests
     [Fact]
     public void Heartbeat_extends_the_lease_from_now()
     {
-        var execution = Execution.Start(Guid.NewGuid(), "executor-1", Lease, Now);
+        var execution = Execution.Start(Guid.NewGuid(), "executor-1", "test-client", Lease, Now);
 
         execution.Heartbeat(Lease, Now.AddMinutes(4));
 
@@ -22,7 +22,7 @@ public class ExecutionTests
     [Fact]
     public void An_expired_lease_cannot_be_renewed()
     {
-        var execution = Execution.Start(Guid.NewGuid(), "executor-1", Lease, Now);
+        var execution = Execution.Start(Guid.NewGuid(), "executor-1", "test-client", Lease, Now);
 
         var error = Assert.Throws<DomainException>(() => execution.Heartbeat(Lease, Now.AddMinutes(6)));
 
@@ -33,7 +33,7 @@ public class ExecutionTests
     [Fact]
     public void Only_an_expired_lease_can_be_marked_expired()
     {
-        var execution = Execution.Start(Guid.NewGuid(), "executor-1", Lease, Now);
+        var execution = Execution.Start(Guid.NewGuid(), "executor-1", "test-client", Lease, Now);
 
         Assert.Throws<DomainException>(() => execution.Expire(Now.AddMinutes(1)));
 
@@ -47,7 +47,7 @@ public class ExecutionTests
     public void Lease_length_is_bounded(int seconds)
     {
         var error = Assert.Throws<DomainException>(
-            () => Execution.Start(Guid.NewGuid(), "executor-1", TimeSpan.FromSeconds(seconds), Now));
+            () => Execution.Start(Guid.NewGuid(), "executor-1", "test-client", TimeSpan.FromSeconds(seconds), Now));
 
         Assert.Equal("invalid_lease", error.Code);
     }
