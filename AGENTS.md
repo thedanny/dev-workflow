@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestone 1 is done. The .NET 10 solution is scaffolded with Domain, Application, Infrastructure, Api, Mcp and Tests projects. Api and Mcp are empty hosts that only expose `/health`. There is no domain model, persistence, or MCP tooling yet. Before adding features, read in this order:
+Milestones 1 and 2 are done. The solution has a domain model and PostgreSQL persistence with migrations. Api and Mcp are hosts that only expose `/health`, which includes a database check. There are no API endpoints, MCP tools, or application services yet. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -14,13 +14,17 @@ Milestone 1 is done. The .NET 10 solution is scaffolded with Domain, Application
 
 ```sh
 dotnet build DevWorkflow.slnx        # build everything; warnings are errors
-dotnet test DevWorkflow.slnx         # run all tests
-dotnet test DevWorkflow.slnx --filter "FullyQualifiedName~ProjectLayeringTests"   # run one test class
+dotnet test DevWorkflow.slnx         # run all tests; persistence tests need Docker running
+dotnet test DevWorkflow.slnx --filter "FullyQualifiedName~PersistenceTests"   # run one test class
 dotnet run --project src/DevWorkflow.Api   # API on http://localhost:5080
 dotnet run --project src/DevWorkflow.Mcp   # MCP host on http://localhost:5081
+
+dotnet tool restore                                  # installs the pinned dotnet-ef
+dotnet ef migrations add <Name> --project src/DevWorkflow.Infrastructure --startup-project src/DevWorkflow.Infrastructure --output-dir Persistence/Migrations
+dotnet ef database update --project src/DevWorkflow.Infrastructure --startup-project src/DevWorkflow.Infrastructure
 ```
 
-Add migration and Docker Compose commands here when those milestones land.
+The hosts and `dotnet ef` read the `ConnectionStrings__DevWorkflow` environment variable. In Development they fall back to a local database at `localhost:5432` with database, user and password all `devworkflow`. Add Docker Compose commands here when that milestone lands.
 
 ## Solution conventions
 
@@ -30,6 +34,16 @@ Add migration and Docker Compose commands here when those milestones land.
 - `global.json` pins the SDK to 10.0.x.
 - Dependency direction is Domain, then Application, then Infrastructure, with Api and Mcp on top. Api and Mcp never reference each other. `ProjectLayeringTests` enforces this from the project files and fails if a new `src/` project has no rule.
 - Test names may use underscores; `tests/.editorconfig` relaxes that one analyzer rule for tests only.
+
+## Persistence conventions
+
+- Domain entities have private setters and change state only through methods that enforce the rules and throw `DomainException` with a stable `Code`. EF maps them through backing fields; the Domain project has no EF dependency.
+- The registered repository entity is `CodeRepository`, so it isn't confused with the data-access pattern.
+- Tables and columns are snake_case. Enums are stored as strings, except work item priority, which is stored as a number so the queue can sort by it.
+- `WorkItem.Version` and `Execution.Version` are concurrency tokens. A stale save throws `DbUpdateConcurrencyException`.
+- Some rules live in the database on purpose, and tests prove each one. A partial unique index allows one active execution per work item. A unique index on source type plus idempotency key deduplicates signals. Triggers make `audit_events` append-only and make a signal's raw data immutable. Only a signal's status may change.
+- When the model changes, add a migration. The `Migrations_match_the_model` test fails if you forget.
+- Persistence tests share one Testcontainers Postgres instance. Keep them independent by creating unique data instead of cleaning up, since triggers block deleting signals and audit events.
 
 ## What is being built
 
