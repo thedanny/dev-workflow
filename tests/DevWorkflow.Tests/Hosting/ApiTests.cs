@@ -68,6 +68,8 @@ public sealed class ApiTests(PostgresFixture database) : IAsyncLifetime
         var contested = await executorB.PostAsJsonAsync($"/api/v1/work-items/{id}/claim", new { executor_id = "agent-b", repository = repoA });
         var mismatched = await executorB.PostAsJsonAsync($"/api/v1/work-items/{id}/claim", new { executor_id = "agent-b", repository = repoB });
         var badLease = await executorA.PostAsJsonAsync($"/api/v1/executions/{(await Json(claim))["execution"]!["id"]}/heartbeat", new { lease_seconds = 5 });
+        var heldByA = await Json(await executorA.GetAsync(new Uri($"/api/v1/executions?repository={repoA}", UriKind.Relative)));
+        var heldByB = await Json(await executorB.GetAsync(new Uri($"/api/v1/executions?repository={repoA}", UriKind.Relative)));
 
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
         Assert.Equal("approved", (await Json(approve))["status"]!.GetValue<string>());
@@ -77,6 +79,8 @@ public sealed class ApiTests(PostgresFixture database) : IAsyncLifetime
         await AssertProblemAsync(contested, HttpStatusCode.Conflict, "already_claimed");
         await AssertProblemAsync(mismatched, HttpStatusCode.Forbidden, "repository_mismatch");
         await AssertProblemAsync(badLease, HttpStatusCode.BadRequest, "invalid_lease");
+        Assert.Equal(id, Assert.Single(heldByA.AsArray())!["work_item"]!["id"]!.GetValue<Guid>());
+        Assert.Empty(heldByB.AsArray());
     }
 
     private HttpClient Client(string key)
