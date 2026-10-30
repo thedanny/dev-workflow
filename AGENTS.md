@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestones 1 to 4 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, and GitHub and Bitbucket adapters that verify reported pull requests. Docker Compose, seeding and the local agent skill come next. Before adding features, read in this order:
+Milestones 1 to 5 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, GitHub and Bitbucket adapters that verify reported pull requests, and a Docker Compose stack with sample data. The local agent skill comes next. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -24,7 +24,19 @@ dotnet ef migrations add <Name> --project src/DevWorkflow.Infrastructure --start
 dotnet ef database update --project src/DevWorkflow.Infrastructure --startup-project src/DevWorkflow.Infrastructure
 ```
 
-The hosts and `dotnet ef` read the `ConnectionStrings__DevWorkflow` environment variable. In Development they fall back to a local database at `localhost:5432` with database, user and password all `devworkflow`. Add Docker Compose commands here when that milestone lands.
+The hosts and `dotnet ef` read the `ConnectionStrings__DevWorkflow` environment variable. In Development they fall back to a local database at `localhost:5432` with database, user and password all `devworkflow`.
+
+### Docker Compose
+
+```sh
+scripts/init-env.sh                       # writes .env with random secrets (pwsh scripts/init-env.ps1 on Windows)
+docker compose up -d --build --wait       # postgres, then the one-shot migrate job, then api (5080) and mcp (5081)
+docker compose run --rm migrate seed      # add the fictional sample data; running it again does nothing
+docker compose logs -f api                # JSON logs
+docker compose down -v                    # stop and delete the database
+```
+
+The host executables take an optional first argument: `healthcheck` (both hosts, used by the image health checks), `migrate` and `seed` (API only). `seed` applies migrations, then runs `SampleDataSeeder` through the normal services. The `migrate` service gets no provider tokens, so seeding never checks the fictional repositories against a real provider. `compose.yaml` maps one key hash per role from `.env`. To add another executor, add another `Authentication__ApiKeys__N__*` block.
 
 ### API keys
 

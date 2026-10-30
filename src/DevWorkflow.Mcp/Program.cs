@@ -1,11 +1,24 @@
 using DevWorkflow.Application;
 using DevWorkflow.Application.Services;
+using DevWorkflow.Infrastructure.Hosting;
 using DevWorkflow.Infrastructure.Persistence;
 using DevWorkflow.Infrastructure.Providers;
 using DevWorkflow.Infrastructure.Security;
 using DevWorkflow.Mcp.Tools;
 
-var builder = WebApplication.CreateBuilder(args);
+var (command, hostArgs) = HostCommands.Parse(args);
+if (command == HostCommands.HealthCheck)
+{
+    return await HostCommands.CheckHealthAsync();
+}
+
+if (command is not null)
+{
+    await Console.Error.WriteLineAsync($"Unknown command '{command}'. Use healthcheck, or no command to run the MCP server.");
+    return 2;
+}
+
+var builder = WebApplication.CreateBuilder(hostArgs);
 
 var connectionString = builder.Configuration.GetConnectionString(PersistenceServiceCollectionExtensions.ConnectionStringName)
     ?? throw new InvalidOperationException(
@@ -34,4 +47,5 @@ app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapMcp("/mcp");
 
-app.Run();
+await app.RunAsync();
+return 0;

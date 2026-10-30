@@ -1,0 +1,5 @@
+# Scripts and env templates run inside Linux containers and shells, so keep LF everywhere.
+*.sh text eol=lf
+.env.example text eol=lf
+Dockerfile text eol=lf
+compose.yaml text eol=lf
