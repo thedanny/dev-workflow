@@ -27,6 +27,14 @@ public sealed class ExecutorTools(IHttpContextAccessor http, ExecutionService ex
         CancellationToken cancellationToken = default) =>
         ToolResults.RunAsync(() => executions.ListApprovedWorkAsync(ToolResults.CallerFrom(http), repository, limit, min_priority, cancellationToken));
 
+    [McpServerTool(Name = "list_my_executions", ReadOnly = true)]
+    [Description("List your live executions in your repository, oldest first. Call this before claiming new work, " +
+                 "so a restarted session resumes what it already holds.")]
+    public Task<CallToolResult> ListMyExecutions(
+        [Description("Your repository: its key, or the git remote URL of your working directory.")] string repository,
+        CancellationToken cancellationToken = default) =>
+        ToolResults.RunAsync(() => executions.ListActiveAsync(ToolResults.CallerFrom(http), repository, cancellationToken));
+
     [McpServerTool(Name = "claim_work_item")]
     [Description("Claim an approved work item in your repository and start a lease. " +
                  "Renew it with heartbeat_execution before it expires, or the work returns to the queue.")]

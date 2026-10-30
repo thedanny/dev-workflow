@@ -36,6 +36,7 @@ Provide authenticated equivalents of:
 - list_signals(status, source_type, limit)
 - propose_work_item(title, description, repository, signal_ids, acceptance_criteria, priority, risk)
 - list_approved_work(repository, limit, filters), where repository is required
+- list_my_executions(repository), the caller's executions with a live lease in that repository, so a restarted agent resumes them
 - get_work_item(id, repository), where executors must pass their repository and can only read work routed to it
 - claim_work_item(id, executor_id, repository, lease_seconds), rejected if the repository does not match the work item
 - heartbeat_execution(execution_id)
@@ -57,6 +58,8 @@ Return structured validation and conflict errors. Never expose secrets in respon
 
 ## Local executor
 Human explicitly launches Claude Code or Codex using their own supported subscription sign-in. A reusable skill resolves the current repository from its git remote, reads approved tasks for that repository only, claims each task, checks out an isolated worktree and branch, plans and delegates according to complexity, implements, tests, critiques/reviews and opens a PR. Do not assume unattended subscription sessions are supported. Resume safely from persisted state.
+
+The skill lives in `agents/skills/dev-workflow-executor/SKILL.md` and works for both Claude Code and Codex. `agents/README.md` explains how to install it and connect each agent to the MCP server with an executor key. The server holds the resumable state: each execution records its branch and worktree path, and a new session finds its executions with list_my_executions.
 
 ## Repository abstraction
 Support GitHub and Bitbucket through separate adapters: resolve repo, branch, push, open PR, retrieve PR status. No GitHub Actions assumption for Bitbucket. Credentials are scoped per provider and repository.
