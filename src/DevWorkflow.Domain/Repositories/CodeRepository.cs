@@ -62,6 +62,12 @@ public sealed class CodeRepository
         };
     }
 
+    public void ChangeDefaultBranch(string defaultBranch)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultBranch);
+        DefaultBranch = defaultBranch.Trim();
+    }
+
     public void Disable() => Enabled = false;
 
     public void Enable() => Enabled = true;

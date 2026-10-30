@@ -61,6 +61,15 @@ Human explicitly launches Claude Code or Codex using their own supported subscri
 ## Repository abstraction
 Support GitHub and Bitbucket through separate adapters: resolve repo, branch, push, open PR, retrieve PR status. No GitHub Actions assumption for Bitbucket. Credentials are scoped per provider and repository.
 
+Each adapter client is bound to one registered repository and the credential chosen for it: the repository's own first, then its provider's. The client has no merge, approve or deploy operation. Executors push commits and open pull requests with their own git tooling on the developer's machine. The server uses its credentials only to read, and pushing is confirmed by reading the branch's head commit.
+
+With a credential configured for a repository:
+- Registering the repository confirms it exists on the provider and takes the provider's default branch when none is given.
+- report_pull_request checks the pull request on the provider. Its head and base branches must match the report, and it must not be closed unmerged. The provider's state, head commit, checks and reviews are stored, and the record is marked verified.
+- A background sync refreshes open pull requests and records state changes, such as a merge made by a person, in the audit log. It never changes the work item's status.
+
+Without a credential the report is recorded as given and marked unverified. Supported providers are GitHub, including GitHub Enterprise Server, and Bitbucket Cloud. Checks are summarized from GitHub check runs and commit statuses, or from Bitbucket build statuses, which any CI system can report.
+
 ## Security and release boundary
 - Development credentials cannot merge protected branches or deploy.
 - Production deployment remains a separate, human-authorized workflow.

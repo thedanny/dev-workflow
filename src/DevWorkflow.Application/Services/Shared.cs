@@ -105,5 +105,7 @@ internal static class Actors
 {
     public const string LeaseSweeper = "system:lease-sweeper";
 
+    public const string PullRequestSync = "system:pull-request-sync";
+
     public static string Of(Caller caller) => caller.Name;
 }

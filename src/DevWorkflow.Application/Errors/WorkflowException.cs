@@ -9,6 +9,9 @@ public enum ErrorKind
     NotFound,
     Conflict,
     Forbidden,
+
+    /// <summary>A repository provider failed or refused the server's credential.</summary>
+    Unavailable,
 }
 
 /// <summary>An expected failure with a stable code, translated to HTTP problems and MCP tool errors.</summary>
@@ -49,6 +52,8 @@ public sealed class WorkflowException : Exception
     public static WorkflowException Conflict(string code, string message) => new(ErrorKind.Conflict, code, message);
 
     public static WorkflowException Forbidden(string code, string message) => new(ErrorKind.Forbidden, code, message);
+
+    public static WorkflowException Unavailable(string code, string message) => new(ErrorKind.Unavailable, code, message);
 }
 
 /// <summary>A failure as returned to a client. Never contains secrets or stack traces.</summary>
