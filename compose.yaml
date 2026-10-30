@@ -1,0 +1,92 @@
+# Local Dev Workflow stack: PostgreSQL, a one-shot migration job, the API and the MCP server.
+# Create .env first with scripts/init-env.sh or scripts/init-env.ps1, or copy .env.example.
+# Every port is bound to 127.0.0.1, so nothing is reachable from other machines.
+
+name: dev-workflow
+
+# GSS encryption is off because the runtime image has no Kerberos library and the database is local.
+x-database: &database
+  ConnectionStrings__DevWorkflow: Host=postgres;Port=5432;Database=devworkflow;Username=devworkflow;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env};GSS Encryption Mode=Disable
+  Logging__Console__FormatterName: json
+
+x-host: &host
+  <<: *database
+  Authentication__ApiKeys__0__Name: listener
+  Authentication__ApiKeys__0__Role: Listener
+  Authentication__ApiKeys__0__KeyHash: ${LISTENER_KEY_HASH:?Set LISTENER_KEY_HASH in .env}
+  Authentication__ApiKeys__1__Name: evaluator
+  Authentication__ApiKeys__1__Role: Evaluator
+  Authentication__ApiKeys__1__KeyHash: ${EVALUATOR_KEY_HASH:?Set EVALUATOR_KEY_HASH in .env}
+  Authentication__ApiKeys__2__Name: approver
+  Authentication__ApiKeys__2__Role: Approver
+  Authentication__ApiKeys__2__KeyHash: ${APPROVER_KEY_HASH:?Set APPROVER_KEY_HASH in .env}
+  Authentication__ApiKeys__3__Name: executor
+  Authentication__ApiKeys__3__Role: Executor
+  Authentication__ApiKeys__3__KeyHash: ${EXECUTOR_KEY_HASH:?Set EXECUTOR_KEY_HASH in .env}
+  RepositoryProviders__GitHub__Token: ${GITHUB_TOKEN:-}
+  RepositoryProviders__Bitbucket__Token: ${BITBUCKET_TOKEN:-}
+  RepositoryProviders__Bitbucket__Username: ${BITBUCKET_USERNAME:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: devworkflow
+      POSTGRES_USER: devworkflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devworkflow -d devworkflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies migrations, then exits. `docker compose run --rm migrate seed` also adds sample data.
+  migrate:
+    build:
+      context: .
+      target: api
+    image: dev-workflow-api:local
+    command: ["migrate"]
+    environment:
+      <<: *database
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: api
+    image: dev-workflow-api:local
+    environment:
+      <<: *host
+      Leases__SweepIntervalSeconds: ${LEASE_SWEEP_INTERVAL_SECONDS:-30}
+      PullRequests__SyncIntervalSeconds: ${PULL_REQUEST_SYNC_INTERVAL_SECONDS:-300}
+    ports:
+      - "127.0.0.1:${API_PORT:-5080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      target: mcp
+    image: dev-workflow-mcp:local
+    environment:
+      <<: *host
+    ports:
+      - "127.0.0.1:${MCP_PORT:-5081}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

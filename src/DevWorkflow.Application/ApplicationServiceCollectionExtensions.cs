@@ -1,4 +1,5 @@
 using DevWorkflow.Application.Providers;
+using DevWorkflow.Application.Samples;
 using DevWorkflow.Application.Services;
 using DevWorkflow.Application.Signals;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<WorkItemService>();
         services.AddScoped<ExecutionService>();
         services.AddScoped<PullRequestService>();
+        services.AddScoped<SampleDataSeeder>();
         return services;
     }
 }
