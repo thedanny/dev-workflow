@@ -28,6 +28,7 @@ internal sealed class WorkflowExceptionHandler(IProblemDetailsService problems) 
             ErrorKind.Validation => StatusCodes.Status400BadRequest,
             ErrorKind.NotFound => StatusCodes.Status404NotFound,
             ErrorKind.Forbidden => StatusCodes.Status403Forbidden,
+            ErrorKind.Unavailable => StatusCodes.Status502BadGateway,
             _ => StatusCodes.Status409Conflict,
         };
 

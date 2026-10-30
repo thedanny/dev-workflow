@@ -35,6 +35,14 @@ public sealed class PullRequest
 
     public string? ReviewSummary { get; private set; }
 
+    public PullRequestState State { get; private set; }
+
+    /// <summary>The head commit the provider last reported.</summary>
+    public string? HeadCommit { get; private set; }
+
+    /// <summary>When the provider last confirmed this pull request. Null if it was never checked.</summary>
+    public DateTimeOffset? VerifiedAt { get; private set; }
+
     public DateTimeOffset ReportedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -68,6 +76,7 @@ public sealed class PullRequest
             HeadBranch = headBranch.Trim(),
             BaseBranch = baseBranch.Trim(),
             ChecksSummary = checksSummary,
+            State = PullRequestState.Open,
             ReportedAt = now,
             UpdatedAt = now,
         };
@@ -78,5 +87,23 @@ public sealed class PullRequest
         ChecksSummary = checksSummary;
         ReviewSummary = reviewSummary;
         UpdatedAt = now;
+    }
+
+    /// <summary>Records the provider's view of the pull request. Returns true when its state changed.</summary>
+    public bool RecordProviderStatus(
+        PullRequestState state,
+        string? headCommit,
+        string? checksSummary,
+        string? reviewSummary,
+        DateTimeOffset now)
+    {
+        var changed = state != State;
+        State = state;
+        HeadCommit = headCommit;
+        ChecksSummary = checksSummary;
+        ReviewSummary = reviewSummary;
+        VerifiedAt = now;
+        UpdatedAt = now;
+        return changed;
     }
 }

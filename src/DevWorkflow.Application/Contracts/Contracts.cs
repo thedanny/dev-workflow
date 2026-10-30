@@ -126,9 +126,13 @@ public sealed record PullRequestDto(
     Uri Url,
     string HeadBranch,
     string BaseBranch,
+    PullRequestState State,
+    string? HeadCommit,
     string? ChecksSummary,
     string? ReviewSummary,
-    DateTimeOffset ReportedAt)
+    DateTimeOffset ReportedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? VerifiedAt)
 {
     public static PullRequestDto From(PullRequest pullRequest) => new(
         pullRequest.Id,
@@ -139,9 +143,13 @@ public sealed record PullRequestDto(
         pullRequest.Url,
         pullRequest.HeadBranch,
         pullRequest.BaseBranch,
+        pullRequest.State,
+        pullRequest.HeadCommit,
         pullRequest.ChecksSummary,
         pullRequest.ReviewSummary,
-        pullRequest.ReportedAt);
+        pullRequest.ReportedAt,
+        pullRequest.UpdatedAt,
+        pullRequest.VerifiedAt);
 }
 
 public sealed record PullRequestResult(PullRequestDto PullRequest, WorkItemDto WorkItem);

@@ -18,38 +18,19 @@ public sealed class LeaseExpiryOptions
 internal sealed partial class LeaseExpiryWorker(
     IServiceScopeFactory scopes,
     IOptions<LeaseExpiryOptions> options,
-    ILogger<LeaseExpiryWorker> logger) : BackgroundService
+    ILogger<LeaseExpiryWorker> logger) : PeriodicWorker(scopes, logger)
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        var interval = options.Value.SweepIntervalSeconds;
-        if (interval <= 0)
-        {
-            return;
-        }
+    protected override int IntervalSeconds => options.Value.SweepIntervalSeconds;
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(interval));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+    protected override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var expired = await services.GetRequiredService<ExecutionService>().ExpireLeasesAsync(cancellationToken: cancellationToken);
+        if (expired > 0)
         {
-            try
-            {
-                await using var scope = scopes.CreateAsyncScope();
-                var expired = await scope.ServiceProvider.GetRequiredService<ExecutionService>().ExpireLeasesAsync(cancellationToken: stoppingToken);
-                if (expired > 0)
-                {
-                    LogExpired(logger, expired);
-                }
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                LogSweepFailed(logger, exception);
-            }
+            LogExpired(logger, expired);
         }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Expired {Count} stale execution leases and requeued their work.")]
     private static partial void LogExpired(ILogger logger, int count);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Lease expiry sweep failed; retrying on the next tick.")]
-    private static partial void LogSweepFailed(ILogger logger, Exception exception);
 }

@@ -186,6 +186,11 @@ namespace DevWorkflow.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("head_branch");
 
+                    b.Property<string>("HeadCommit")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("head_commit");
+
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -204,6 +209,12 @@ namespace DevWorkflow.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("review_summary");
 
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("state");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -213,6 +224,10 @@ namespace DevWorkflow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("url");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_at");
 
                     b.Property<Guid>("WorkItemId")
                         .HasColumnType("uuid")
@@ -230,6 +245,9 @@ namespace DevWorkflow.Infrastructure.Persistence.Migrations
                     b.HasIndex("RepositoryId", "ExternalId")
                         .IsUnique()
                         .HasDatabaseName("ix_pull_requests_repository_id_external_id");
+
+                    b.HasIndex("State", "UpdatedAt")
+                        .HasDatabaseName("ix_pull_requests_state_updated_at");
 
                     b.ToTable("pull_requests", (string)null);
                 });

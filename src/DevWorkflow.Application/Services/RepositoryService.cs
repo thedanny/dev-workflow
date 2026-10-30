@@ -1,13 +1,14 @@
 using DevWorkflow.Application.Abstractions;
 using DevWorkflow.Application.Contracts;
 using DevWorkflow.Application.Errors;
+using DevWorkflow.Application.Providers;
 using DevWorkflow.Application.Security;
 using DevWorkflow.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace DevWorkflow.Application.Services;
 
-public sealed class RepositoryService(IDevWorkflowDb db, TimeProvider clock)
+public sealed class RepositoryService(IDevWorkflowDb db, IRepositoryClientFactory clients, TimeProvider clock)
 {
     public async Task<RepositoryDto> RegisterAsync(
         Caller caller,
@@ -34,6 +35,19 @@ public sealed class RepositoryService(IDevWorkflowDb db, TimeProvider clock)
             throw WorkflowException.Conflict(
                 "repository_already_registered",
                 $"A repository with key '{repository.Key}' or remote '{repository.RemoteUrl}' is already registered.");
+        }
+
+        // With a credential configured, the provider must confirm the repository exists.
+        if (clients.Create(repository) is { } client)
+        {
+            var remote = await client.GetRepositoryAsync(cancellationToken)
+                ?? throw WorkflowException.Validation(
+                    "repository_not_found_on_provider",
+                    $"{repository.Provider} has no repository at {repository.RemoteUrl} that the configured credential can see.");
+            if (string.IsNullOrWhiteSpace(request.DefaultBranch))
+            {
+                repository.ChangeDefaultBranch(remote.DefaultBranch);
+            }
         }
 
         db.Repositories.Add(repository);

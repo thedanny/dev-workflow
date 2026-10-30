@@ -144,6 +144,8 @@ internal sealed class PullRequestConfiguration : IEntityTypeConfiguration<PullRe
         builder.Property(p => p.Url).HasMaxLength(1000);
         builder.Property(p => p.HeadBranch).HasMaxLength(300);
         builder.Property(p => p.BaseBranch).HasMaxLength(300);
+        builder.Property(p => p.HeadCommit).HasMaxLength(64);
+        builder.HasIndex(p => new { p.State, p.UpdatedAt });
         builder.HasOne<WorkItem>().WithMany().HasForeignKey(p => p.WorkItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Execution>().WithMany().HasForeignKey(p => p.ExecutionId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<CodeRepository>().WithMany().HasForeignKey(p => p.RepositoryId).OnDelete(DeleteBehavior.Restrict);

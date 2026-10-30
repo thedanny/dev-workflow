@@ -25,12 +25,14 @@ internal sealed class WorkflowHarness : IAsyncDisposable
 
     private readonly ServiceProvider _provider;
 
-    public WorkflowHarness(PostgresFixture database)
+    /// <param name="configure">Runs after the application services are registered, for example to add provider adapters.</param>
+    public WorkflowHarness(PostgresFixture database, Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(Clock);
         services.AddDevWorkflowPersistence(database.ConnectionString);
         services.AddDevWorkflowApplication();
+        configure?.Invoke(services);
         _provider = services.BuildServiceProvider();
     }
 

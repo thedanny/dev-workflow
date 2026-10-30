@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestones 1 to 3 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, and an MCP server at `/mcp` with the same operations as tools. Repository adapters, Docker Compose, seeding and the local agent skill come next. Before adding features, read in this order:
+Milestones 1 to 4 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, and GitHub and Bitbucket adapters that verify reported pull requests. Docker Compose, seeding and the local agent skill come next. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -40,6 +40,21 @@ export Authentication__ApiKeys__0__KeyHash=$HASH
 
 Both hosts must be given the same key list. With no keys configured, every authenticated request returns 401.
 
+### Repository provider credentials
+
+Optional. Without them, pull request reports are stored unverified. Give both hosts the same values. Tokens should only read repositories, pull requests, checks and reviews. Never use a token that can merge, administer or deploy.
+
+```sh
+export RepositoryProviders__GitHub__Token=<token>             # every GitHub repository
+export RepositoryProviders__GitHub__ApiBaseUrl=<url>          # optional, e.g. GitHub Enterprise Server
+export RepositoryProviders__Bitbucket__Token=<token>          # Bitbucket Cloud access token (bearer)
+export RepositoryProviders__Bitbucket__Username=<user>        # optional: send the token with basic auth
+export RepositoryProviders__Credentials__0__Repository=<key>  # a single repository's own credential,
+export RepositoryProviders__Credentials__0__Token=<token>     # which takes precedence
+```
+
+The API host refreshes open pull requests every `PullRequests__SyncIntervalSeconds` (default 300; 0 disables).
+
 ## Application conventions
 
 - The API and MCP are thin. All rules live in the application services under `src/DevWorkflow.Application/Services`, which both hosts call. Add an operation there first, then expose it in `Endpoints.cs` and in a tool class under `src/DevWorkflow.Mcp/Tools`.
@@ -50,6 +65,9 @@ Both hosts must be given the same key list. With no keys configured, every authe
 - Signals are redacted on the server before storage by `SignalRedactor`, which removes common secrets and email addresses.
 - JSON is snake_case everywhere, including enum values such as `pr_ready`, through `WorkflowJson`. MCP tool parameters are snake_case C# parameter names for the same reason.
 - The API host runs `LeaseExpiryWorker`, which requeues work whose lease expired. `Leases__SweepIntervalSeconds` sets the interval, and 0 disables it. Claims also expire a stale lease inline.
+- Provider access goes through `IRepositoryClientFactory`, which binds an `IRepositoryClient` to one repository and its credential, or returns null when none is configured. Services must handle the null case by skipping verification, never by failing. The adapters live in `src/DevWorkflow.Infrastructure/Providers`. Provider failures become `ErrorKind.Unavailable` (HTTP 502) with codes such as `provider_unavailable`, and messages never include a credential.
+- Never add merge, approve, deploy or branch-protection operations to `IRepositoryClient`. A test fails if one appears.
+- Provider tests use the in-memory fakes in `tests/DevWorkflow.Tests/Providers/FakeProviders.cs`, wired with `UseFakeProviders`. Tests never call a real provider.
 
 ## Solution conventions
 

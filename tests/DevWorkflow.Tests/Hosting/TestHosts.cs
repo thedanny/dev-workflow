@@ -34,6 +34,7 @@ internal static class TestKeys
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:DevWorkflow", database.ConnectionString);
         builder.UseSetting("Leases:SweepIntervalSeconds", "0");
+        builder.UseSetting("PullRequests:SyncIntervalSeconds", "0");
         for (var i = 0; i < All.Length; i++)
         {
             builder.UseSetting($"Authentication:ApiKeys:{i}:Name", All[i].Name);

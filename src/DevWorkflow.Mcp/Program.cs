@@ -1,6 +1,7 @@
 using DevWorkflow.Application;
 using DevWorkflow.Application.Services;
 using DevWorkflow.Infrastructure.Persistence;
+using DevWorkflow.Infrastructure.Providers;
 using DevWorkflow.Infrastructure.Security;
 using DevWorkflow.Mcp.Tools;
 
@@ -14,6 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString(PersistenceServ
 builder.Services.AddDevWorkflowPersistence(connectionString);
 builder.Services.AddDevWorkflowApplication();
 builder.Services.AddDevWorkflowAuthentication(builder.Configuration);
+builder.Services.AddDevWorkflowRepositoryProviders(builder.Configuration);
 builder.Services.AddHealthChecks().AddDbContextCheck<DevWorkflowDbContext>("database");
 builder.Services.AddHttpContextAccessor();
 

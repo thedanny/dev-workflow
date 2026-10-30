@@ -2,6 +2,7 @@ using System.Globalization;
 using DevWorkflow.Application.Abstractions;
 using DevWorkflow.Application.Contracts;
 using DevWorkflow.Application.Errors;
+using DevWorkflow.Application.Providers;
 using DevWorkflow.Application.Security;
 using DevWorkflow.Domain.Executions;
 using DevWorkflow.Domain.PullRequests;
@@ -15,7 +16,11 @@ namespace DevWorkflow.Application.Services;
 /// The executor's side of the queue. Every operation is scoped to the executor's repository,
 /// and every execution can only be acted on by the client that claimed it.
 /// </summary>
-public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup repositories, TimeProvider clock)
+public sealed class ExecutionService(
+    IDevWorkflowDb db,
+    RepositoryLookup repositories,
+    IRepositoryClientFactory clients,
+    TimeProvider clock)
 {
     public static readonly TimeSpan DefaultLease = TimeSpan.FromMinutes(15);
 
@@ -211,6 +216,9 @@ public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup reposit
 
         ValidatePullRequestUrl(request.Url, repository);
         var externalId = string.IsNullOrWhiteSpace(request.ExternalId) ? PullRequestNumberFrom(request.Url) : request.ExternalId.Trim();
+        var remote = await VerifyPullRequestAsync(repository, externalId, request, cancellationToken);
+        var baseBranch = remote?.BaseBranch
+            ?? (string.IsNullOrWhiteSpace(request.BaseBranch) ? repository.DefaultBranch : request.BaseBranch);
 
         var pullRequest = await db.PullRequests.SingleOrDefaultAsync(
             p => p.RepositoryId == repository.Id && p.ExternalId == externalId,
@@ -225,7 +233,7 @@ public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup reposit
                 externalId,
                 request.Url,
                 request.Branch,
-                string.IsNullOrWhiteSpace(request.BaseBranch) ? repository.DefaultBranch : request.BaseBranch,
+                baseBranch,
                 request.Checks,
                 now);
             db.PullRequests.Add(pullRequest);
@@ -237,6 +245,16 @@ public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup reposit
         else
         {
             pullRequest.UpdateStatus(request.Checks, pullRequest.ReviewSummary, now);
+        }
+
+        if (remote is not null)
+        {
+            pullRequest.RecordProviderStatus(
+                remote.State,
+                remote.HeadCommit,
+                remote.ChecksSummary ?? request.Checks,
+                remote.ReviewSummary,
+                now);
         }
 
         execution.RecordWorkspace(request.Branch, null, now);
@@ -256,6 +274,7 @@ public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup reposit
             ExternalId = externalId,
             Url = request.Url,
             request.Checks,
+            Verified = remote is not null,
         }, now);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -362,6 +381,49 @@ public sealed class ExecutionService(IDevWorkflowDb db, RepositoryLookup reposit
 
     private async Task<WorkItemDto> ToDtoAsync(WorkItem item, CancellationToken cancellationToken) =>
         WorkItemDto.From(item, await repositories.KeyForAsync(item.RepositoryId, cancellationToken));
+
+    /// <summary>
+    /// Confirms the reported pull request on the provider, when a credential is configured for the
+    /// repository. Returns null when it cannot be checked, and the report is then taken as given.
+    /// </summary>
+    private async Task<RemotePullRequest?> VerifyPullRequestAsync(
+        CodeRepository repository,
+        string externalId,
+        ReportPullRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (clients.Create(repository) is not { } client)
+        {
+            return null;
+        }
+
+        var remote = await client.GetPullRequestAsync(externalId, cancellationToken)
+            ?? throw WorkflowException.Validation(
+                "pull_request_not_found",
+                $"{repository.Provider} has no pull request {externalId} in {repository.RemoteUrl}.");
+
+        if (!string.Equals(remote.HeadBranch, request.Branch.Trim(), StringComparison.Ordinal))
+        {
+            throw WorkflowException.Validation(
+                "pull_request_branch_mismatch",
+                $"Pull request {externalId} is from branch '{remote.HeadBranch}', not '{request.Branch}'.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.BaseBranch)
+            && !string.Equals(remote.BaseBranch, request.BaseBranch.Trim(), StringComparison.Ordinal))
+        {
+            throw WorkflowException.Validation(
+                "pull_request_base_mismatch",
+                $"Pull request {externalId} targets '{remote.BaseBranch}', not '{request.BaseBranch}'.");
+        }
+
+        if (remote.State == PullRequestState.Closed)
+        {
+            throw WorkflowException.Conflict("pull_request_closed", $"Pull request {externalId} is closed without being merged.");
+        }
+
+        return remote;
+    }
 
     private static TimeSpan LeaseFrom(int? seconds) => seconds is null ? DefaultLease : TimeSpan.FromSeconds(seconds.Value);
 
