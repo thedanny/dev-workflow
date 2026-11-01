@@ -87,6 +87,7 @@ The server, not the agent, holds the state. Each claim records its branch and wo
 1. Start the agent again in the same repository and ask it to resume.
 2. The skill calls `list_my_executions`, renews each live lease, and continues from the work item's status.
 3. If a lease expired first, the server returned the work to the queue, and it can be claimed again.
+4. If the lease expired after the pull request was reported, the work keeps its `pr_ready` status. An approver closes it with `complete_work_item`.
 
 The `executor_id` the skill picks, such as `<hostname>-claude`, stays the same across sessions. A repeated claim with that ID therefore returns the existing execution instead of failing.
 

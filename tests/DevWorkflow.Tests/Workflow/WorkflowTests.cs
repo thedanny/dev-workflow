@@ -2,6 +2,7 @@ using DevWorkflow.Application.Contracts;
 using DevWorkflow.Application.Errors;
 using DevWorkflow.Application.Services;
 using DevWorkflow.Domain.Executions;
+using DevWorkflow.Domain.Repositories;
 using DevWorkflow.Domain.Signals;
 using DevWorkflow.Domain.WorkItems;
 using DevWorkflow.Infrastructure.Persistence;
@@ -54,6 +55,26 @@ public sealed class WorkflowTests(PostgresFixture database) : IAsyncLifetime
         Assert.Equal(
             ["work_item.proposed", "work_item.approved", "work_item.claimed", "execution.updated", "work_item.pull_request_reported", "execution.updated"],
             events);
+    }
+
+    [Fact]
+    public async Task Of_three_tasks_across_two_repositories_only_the_two_approved_are_executable()
+    {
+        var web = await _harness.RegisterRepositoryAsync();
+        var billing = await _harness.RegisterRepositoryAsync(RepositoryProvider.Bitbucket);
+        var webFix = await _harness.ProposeAsync(web.Key);
+        var webFeature = await _harness.ProposeAsync(web.Key);
+        var billingFix = await _harness.ProposeAsync(billing.Key);
+        await _harness.Run<WorkItemService, WorkItemDto>(s => s.ApproveAsync(Approver, webFix.Id, "Confirmed defect", null));
+        await _harness.Run<WorkItemService, WorkItemDto>(s => s.ApproveAsync(Approver, billingFix.Id, "Confirmed defect", null));
+
+        var webQueue = await _harness.Run<ExecutionService, IReadOnlyList<WorkItemDto>>(s => s.ListApprovedWorkAsync(ExecutorA, web.Key, null, null));
+        var billingQueue = await _harness.Run<ExecutionService, IReadOnlyList<WorkItemDto>>(s => s.ListApprovedWorkAsync(ExecutorA, billing.Key, null, null));
+        var unapproved = await ErrorCodeAsync(() => _harness.ClaimAsync(ExecutorA, webFeature.Id, web.Key));
+
+        Assert.Equal(webFix.Id, Assert.Single(webQueue).Id);
+        Assert.Equal(billingFix.Id, Assert.Single(billingQueue).Id);
+        Assert.Equal("not_claimable", unapproved);
     }
 
     [Fact]
@@ -171,6 +192,28 @@ public sealed class WorkflowTests(PostgresFixture database) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task State_survives_a_restart_and_a_lease_that_expired_meanwhile_is_recovered()
+    {
+        var repository = await _harness.RegisterRepositoryAsync();
+        var item = await _harness.ProposeApprovedAsync(repository.Key);
+        var claimed = await _harness.ClaimAsync(ExecutorA, item.Id, repository.Key, leaseSeconds: 60);
+        await _harness.DisposeAsync();
+
+        // A new service provider over the same database stands in for a restarted host.
+        await using var restarted = new WorkflowHarness(database);
+        var held = await restarted.Run<ExecutionService, IReadOnlyList<ExecutionResult>>(s => s.ListActiveAsync(ExecutorA, repository.Key));
+        restarted.Clock.Advance(TimeSpan.FromSeconds(61));
+        var expired = await restarted.Run<ExecutionService, int>(s => s.ExpireLeasesAsync());
+        var requeued = await restarted.Run<WorkItemService, WorkItemDto>(s => s.GetAsync(Approver, item.Id, null));
+        var reclaimed = await restarted.ClaimAsync(ExecutorB, item.Id, repository.Key, "agent-2");
+
+        Assert.Equal(claimed.Execution.Id, Assert.Single(held).Execution.Id);
+        Assert.True(expired >= 1);
+        Assert.Equal(WorkItemStatus.Approved, requeued.Status);
+        Assert.NotEqual(claimed.Execution.Id, reclaimed.Execution.Id);
+    }
+
+    [Fact]
     public async Task A_claim_takes_over_a_stale_lease_without_waiting_for_the_sweep()
     {
         var repository = await _harness.RegisterRepositoryAsync();
@@ -251,6 +294,33 @@ public sealed class WorkflowTests(PostgresFixture database) : IAsyncLifetime
         Assert.Equal(ExecutionState.Released, blocked.Execution.State);
         Assert.DoesNotContain(queueWhileBlocked, w => w.Id == item.Id);
         Assert.Contains(queueAfter, w => w.Id == item.Id);
+    }
+
+    [Fact]
+    public async Task An_approver_completes_reported_work_once_the_executors_lease_has_expired()
+    {
+        var repository = await _harness.RegisterRepositoryAsync();
+        var item = await _harness.ProposeApprovedAsync(repository.Key);
+        var claimed = await _harness.ClaimAsync(ExecutorA, item.Id, repository.Key, leaseSeconds: 60);
+        await _harness.Run<ExecutionService, PullRequestResult>(s => s.ReportPullRequestAsync(ExecutorA, claimed.Execution.Id, new ReportPullRequestRequest(
+            new Uri($"https://{repository.RemoteUrl}/pull/7"), "fix/export")));
+
+        var whileHeld = await ErrorCodeAsync(() => _harness.Run<WorkItemService, WorkItemDto>(s => s.CompleteAsync(Approver, item.Id, "PR merged")));
+        _harness.Clock.Advance(TimeSpan.FromSeconds(61));
+        var swept = await _harness.Run<ExecutionService, int>(s => s.ExpireLeasesAsync());
+        var afterSweep = await _harness.Run<WorkItemService, WorkItemDto>(s => s.GetAsync(Approver, item.Id, null));
+        var byExecutor = await ErrorCodeAsync(() => _harness.Run<ExecutionService, ExecutionResult>(s => s.UpdateAsync(ExecutorA, claimed.Execution.Id, new UpdateExecutionRequest(ExecutionUpdateState.Completed))));
+        var byExecutorRole = await ErrorCodeAsync(() => _harness.Run<WorkItemService, WorkItemDto>(s => s.CompleteAsync(ExecutorA, item.Id, "done")));
+        var completed = await _harness.Run<WorkItemService, WorkItemDto>(s => s.CompleteAsync(Approver, item.Id, "PR merged"));
+        var again = await ErrorCodeAsync(() => _harness.Run<WorkItemService, WorkItemDto>(s => s.CompleteAsync(Approver, item.Id, "PR merged")));
+
+        Assert.Equal("execution_active", whileHeld);
+        Assert.True(swept >= 1);
+        Assert.Equal(WorkItemStatus.PRReady, afterSweep.Status);
+        Assert.Equal("execution_not_active", byExecutor);
+        Assert.Equal("role_not_permitted", byExecutorRole);
+        Assert.Equal(WorkItemStatus.Completed, completed.Status);
+        Assert.Equal("not_pr_ready", again);
     }
 
     [Fact]

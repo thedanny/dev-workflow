@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestones 1 to 6 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, GitHub and Bitbucket adapters that verify reported pull requests, a Docker Compose stack with sample data, and a local executor skill for Claude Code and Codex. Demonstrating the acceptance tests comes next. Before adding features, read in this order:
+Phase 1 is complete: milestones 1 to 7 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, GitHub and Bitbucket adapters that verify reported pull requests, a Docker Compose stack with sample data, and a local executor skill for Claude Code and Codex. `docs/acceptance.md` maps each acceptance criterion to its tests and to `scripts/acceptance-demo.ps1`, which checks all of them against the running stack. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -34,6 +34,7 @@ docker compose up -d --build --wait       # postgres, then the one-shot migrate 
 docker compose run --rm migrate seed      # add the fictional sample data; running it again does nothing
 docker compose logs -f api                # JSON logs
 docker compose down -v                    # stop and delete the database
+pwsh scripts/acceptance-demo.ps1 -ListenerKey <k> -EvaluatorKey <k> -ApproverKey <k> -ExecutorKey <k>   # check every acceptance criterion live
 ```
 
 The host executables take an optional first argument: `healthcheck` (both hosts, used by the image health checks), `migrate` and `seed` (API only). `seed` applies migrations, then runs `SampleDataSeeder` through the normal services. The `migrate` service gets no provider tokens, so seeding never checks the fictional repositories against a real provider. `compose.yaml` maps one key hash per role from `.env`. To add another executor, add another `Authentication__ApiKeys__N__*` block.
@@ -76,6 +77,7 @@ The API host refreshes open pull requests every `PullRequests__SyncIntervalSecon
 - Claims race safely. A stale version or the one-active-execution index turns into `already_claimed`. A retried claim by the same credential and executor ID returns the existing execution.
 - Signals are redacted on the server before storage by `SignalRedactor`, which removes common secrets and email addresses.
 - JSON is snake_case everywhere, including enum values such as `pr_ready`, through `WorkflowJson`. MCP tool parameters are snake_case C# parameter names for the same reason.
+- When a lease expires, work that is Claimed or InProgress returns to the queue. PRReady work keeps its status, because its pull request exists. An approver closes it with `complete_work_item`, which is refused while a live lease remains.
 - The API host runs `LeaseExpiryWorker`, which requeues work whose lease expired. `Leases__SweepIntervalSeconds` sets the interval, and 0 disables it. Claims also expire a stale lease inline.
 - Provider access goes through `IRepositoryClientFactory`, which binds an `IRepositoryClient` to one repository and its credential, or returns null when none is configured. Services must handle the null case by skipping verification, never by failing. The adapters live in `src/DevWorkflow.Infrastructure/Providers`. Provider failures become `ErrorKind.Unavailable` (HTTP 502) with codes such as `provider_unavailable`, and messages never include a credential.
 - Never add merge, approve, deploy or branch-protection operations to `IRepositoryClient`. A test fails if one appears.
