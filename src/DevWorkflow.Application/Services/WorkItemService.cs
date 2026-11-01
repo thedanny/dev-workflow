@@ -154,6 +154,46 @@ public sealed class WorkItemService(IDevWorkflowDb db, RepositoryLookup reposito
         return await ToDtoAsync(item, cancellationToken);
     }
 
+    /// <summary>
+    /// Completes work whose pull request is reported but whose executor stopped before completing it.
+    /// While the executor still holds a live lease, completing is its job, not the approver's.
+    /// </summary>
+    public async Task<WorkItemDto> CompleteAsync(
+        Caller caller,
+        Guid workItemId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        caller.Require(CallerRole.Approver);
+
+        var item = await LoadAsync(workItemId, cancellationToken);
+        if (item.Status != WorkItemStatus.PRReady)
+        {
+            throw WorkflowException.Conflict("not_pr_ready", $"Only work with a reported pull request can be completed; this work item is {item.Status}.");
+        }
+
+        var now = clock.GetUtcNow();
+        var active = await db.Executions.SingleOrDefaultAsync(
+            e => e.WorkItemId == item.Id && e.State == ExecutionState.Active,
+            cancellationToken);
+        if (active is not null && !active.IsLeaseExpired(now))
+        {
+            throw WorkflowException.Conflict("execution_active", "The executor still holds this work item and completes it itself.");
+        }
+
+        active?.Expire(now);
+        item.Complete(now);
+        AuditLog.Record(db, "work_item", item.Id, "work_item.completed", Actors.Of(caller), new
+        {
+            Reason = reason,
+            ExpiredExecutionId = active?.Id,
+        }, now);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(item, cancellationToken);
+    }
+
     public async Task<WorkItemDto> CancelAsync(
         Caller caller,
         Guid workItemId,

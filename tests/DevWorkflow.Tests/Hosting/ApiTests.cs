@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DevWorkflow.Api;
 using DevWorkflow.Tests.Persistence;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DevWorkflow.Tests.Hosting;
 
@@ -81,6 +83,18 @@ public sealed class ApiTests(PostgresFixture database) : IAsyncLifetime
         await AssertProblemAsync(badLease, HttpStatusCode.BadRequest, "invalid_lease");
         Assert.Equal(id, Assert.Single(heldByA.AsArray())!["work_item"]!["id"]!.GetValue<Guid>());
         Assert.Empty(heldByB.AsArray());
+    }
+
+    [Fact]
+    public void No_http_route_can_merge_or_deploy()
+    {
+        var routes = _host.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText ?? "")
+            .ToList();
+
+        Assert.Contains("/api/v1/executions/{id:guid}/pull-request", routes);
+        Assert.DoesNotContain(routes, r => r.Contains("merge", StringComparison.OrdinalIgnoreCase) || r.Contains("deploy", StringComparison.OrdinalIgnoreCase));
     }
 
     private HttpClient Client(string key)

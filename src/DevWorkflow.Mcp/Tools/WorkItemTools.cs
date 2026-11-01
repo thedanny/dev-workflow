@@ -102,6 +102,12 @@ public sealed class WorkItemTools(
     public Task<CallToolResult> RequeueWorkItem(Guid work_item_id, string reason, CancellationToken cancellationToken = default) =>
         ToolResults.RunAsync(() => workItems.RequeueAsync(ToolResults.CallerFrom(http), work_item_id, reason, cancellationToken));
 
+    [McpServerTool(Name = "complete_work_item")]
+    [Authorize(Roles = RoleNames.Approver)]
+    [Description("Complete pr_ready work whose executor stopped before completing it. Records bookkeeping only; it never merges the pull request.")]
+    public Task<CallToolResult> CompleteWorkItem(Guid work_item_id, string reason, CancellationToken cancellationToken = default) =>
+        ToolResults.RunAsync(() => workItems.CompleteAsync(ToolResults.CallerFrom(http), work_item_id, reason, cancellationToken));
+
     [McpServerTool(Name = "cancel_work_item", Destructive = true)]
     [Authorize(Roles = RoleNames.Approver)]
     [Description("Cancel a work item and release any active claim on it.")]

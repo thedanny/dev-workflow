@@ -62,6 +62,8 @@ Repository provider tokens in `.env` are optional. Without them, pull requests t
 
 To have Claude Code or Codex work the queue in one of your repositories, install the executor skill and connect the agent to the MCP server as described in [agents/README.md](agents/README.md).
 
+To check every Phase 1 acceptance criterion against the running stack, see [docs/acceptance.md](docs/acceptance.md).
+
 See AGENTS.md for build, test and migration commands.
 
 ## Safety

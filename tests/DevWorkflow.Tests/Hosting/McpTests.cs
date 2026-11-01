@@ -80,6 +80,54 @@ public sealed class McpTests(PostgresFixture database) : IAsyncLifetime
         Assert.Equal("conflict", Structured(contested).GetProperty("error").GetProperty("kind").GetString());
     }
 
+    [Fact]
+    public async Task An_agent_works_a_task_from_claim_to_completion_through_mcp_tools()
+    {
+        var (repository, workItemId) = await SeedApprovedWorkAsync();
+        await using var agent = await ConnectAsync(TestKeys.ExecutorA);
+        var remote = $"git@github.com:example-org/{repository}.git";
+
+        var before = await agent.CallToolAsync("list_my_executions", new Dictionary<string, object?> { ["repository"] = remote });
+        var claim = Structured(await agent.CallToolAsync("claim_work_item", Claim(workItemId, "agent-a", remote)));
+        var executionId = claim.GetProperty("execution").GetProperty("id").GetGuid();
+        var held = await agent.CallToolAsync("list_my_executions", new Dictionary<string, object?> { ["repository"] = remote });
+        var steps = new[]
+        {
+            await agent.CallToolAsync("heartbeat_execution", new Dictionary<string, object?> { ["execution_id"] = executionId, ["lease_seconds"] = 1800 }),
+            await agent.CallToolAsync("update_execution", new Dictionary<string, object?>
+            {
+                ["execution_id"] = executionId,
+                ["state"] = "in_progress",
+                ["summary"] = "Reproduced; fixing",
+                ["branch"] = "dw/fix-export",
+                ["worktree_path"] = "../worktrees/fix-export",
+            }),
+            await agent.CallToolAsync("report_pull_request", new Dictionary<string, object?>
+            {
+                ["execution_id"] = executionId,
+                ["url"] = $"https://github.com/example-org/{repository}/pull/12",
+                ["branch"] = "dw/fix-export",
+                ["checks"] = "build ok; tests passed",
+            }),
+        };
+        var completed = await agent.CallToolAsync("update_execution", new Dictionary<string, object?>
+        {
+            ["execution_id"] = executionId,
+            ["state"] = "completed",
+            ["summary"] = "PR opened for review",
+            ["evidence"] = new[] { $"https://github.com/example-org/{repository}/pull/12" },
+        });
+        var after = await agent.CallToolAsync("list_my_executions", new Dictionary<string, object?> { ["repository"] = remote });
+
+        Assert.Equal(0, Structured(before).GetProperty("items").GetArrayLength());
+        Assert.Equal(executionId, Structured(held).GetProperty("items")[0].GetProperty("execution").GetProperty("id").GetGuid());
+        Assert.All(steps, s => Assert.NotEqual(true, s.IsError));
+        Assert.Equal("pr_ready", Structured(steps[2]).GetProperty("work_item").GetProperty("status").GetString());
+        Assert.Equal("completed", Structured(completed).GetProperty("work_item").GetProperty("status").GetString());
+        Assert.Equal("dw/fix-export", Structured(completed).GetProperty("execution").GetProperty("branch").GetString());
+        Assert.Equal(0, Structured(after).GetProperty("items").GetArrayLength());
+    }
+
     private async Task<McpClient> ConnectAsync(string key)
     {
         var http = _host.CreateClient();

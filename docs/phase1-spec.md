@@ -50,6 +50,7 @@ Triage, authorization and the repository registry, needed to route and approve w
 - route_work_item(id, repository)
 - approve_work_item(id, reason, scope), reject_work_item(id, reason)
 - requeue_work_item(id, reason) to return Blocked work to the queue, and cancel_work_item(id, reason)
+- complete_work_item(id, reason) to complete PRReady work whose executor stopped before completing it. It is refused while the executor's lease is live, and it never merges anything.
 - register_repository(key, provider, remote_url, default_branch) and list_repositories()
 
 Each operation is limited to the roles in Signal intake. An executor can only act on executions its own credential claimed. A retried claim by the same credential and executor ID returns the existing execution instead of a conflict.
@@ -84,6 +85,8 @@ Without a credential the report is recorded as given and marked unverified. Supp
 Docker Compose for API/Postgres/MCP, migrations, health checks, structured logs, tests, sample environment template (no credentials), README with local setup, sample signals from at least two source types, and three seeded demonstration tasks across two sample repositories linked to those signals.
 
 ## Acceptance criteria
+[acceptance.md](acceptance.md) maps each criterion to its automated tests and to a live demo against the Compose stack.
+
 1. Create three sample tasks across two repositories and approve two.
 2. Only approved tasks appear in the executable queue.
 3. Concurrent claims cannot acquire the same task.

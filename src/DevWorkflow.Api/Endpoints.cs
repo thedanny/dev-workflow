@@ -94,6 +94,10 @@ internal static class Endpoints
             workItems.RequeueAsync(http.User.ToCaller(), id, body.Reason, ct))
             .RequireRoles(RoleNames.Approver);
 
+        api.MapPost("/work-items/{id:guid}/complete", (Guid id, ReasonBody body, HttpContext http, WorkItemService workItems, CancellationToken ct) =>
+            workItems.CompleteAsync(http.User.ToCaller(), id, body.Reason, ct))
+            .RequireRoles(RoleNames.Approver);
+
         api.MapPost("/work-items/{id:guid}/cancel", (Guid id, ReasonBody body, HttpContext http, WorkItemService workItems, CancellationToken ct) =>
             workItems.CancelAsync(http.User.ToCaller(), id, body.Reason, ct))
             .RequireRoles(RoleNames.Approver);
