@@ -18,7 +18,7 @@ public sealed class McpTests(PostgresFixture database) : IAsyncLifetime
     private static readonly string[] ExecutorToolNames =
     [
         "claim_work_item", "get_work_item", "heartbeat_execution", "list_approved_work",
-        "list_repositories", "release_claim", "report_pull_request", "update_execution",
+        "list_my_executions", "list_repositories", "release_claim", "report_pull_request", "update_execution",
     ];
 
     private readonly TestHost<McpAssemblyMarker> _host = new(database);

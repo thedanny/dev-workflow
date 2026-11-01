@@ -107,6 +107,10 @@ internal static class Endpoints
             executions.ClaimAsync(http.User.ToCaller(), id, request, ct))
             .RequireRoles(RoleNames.Executor);
 
+        api.MapGet("/executions", (string repository, HttpContext http, ExecutionService executions, CancellationToken ct) =>
+            executions.ListActiveAsync(http.User.ToCaller(), repository, ct))
+            .RequireRoles(RoleNames.Executor);
+
         api.MapPost("/executions/{id:guid}/heartbeat", (Guid id, HeartbeatBody? body, HttpContext http, ExecutionService executions, CancellationToken ct) =>
             executions.HeartbeatAsync(http.User.ToCaller(), id, body?.LeaseSeconds, ct))
             .RequireRoles(RoleNames.Executor);

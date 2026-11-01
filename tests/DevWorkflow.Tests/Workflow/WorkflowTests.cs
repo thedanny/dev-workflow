@@ -196,6 +196,27 @@ public sealed class WorkflowTests(PostgresFixture database) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_executor_lists_only_its_own_live_executions_in_its_repository_to_resume_them()
+    {
+        var repoA = await _harness.RegisterRepositoryAsync();
+        var repoB = await _harness.RegisterRepositoryAsync();
+        var held = await _harness.ClaimAsync(ExecutorA, (await _harness.ProposeApprovedAsync(repoA.Key)).Id, repoA.Key, leaseSeconds: 600);
+        var released = await _harness.ClaimAsync(ExecutorA, (await _harness.ProposeApprovedAsync(repoA.Key)).Id, repoA.Key);
+        await _harness.ClaimAsync(ExecutorA, (await _harness.ProposeApprovedAsync(repoA.Key)).Id, repoA.Key, leaseSeconds: 60);
+        await _harness.ClaimAsync(ExecutorA, (await _harness.ProposeApprovedAsync(repoB.Key)).Id, repoB.Key);
+        await _harness.ClaimAsync(ExecutorB, (await _harness.ProposeApprovedAsync(repoA.Key)).Id, repoA.Key);
+        await _harness.Run<ExecutionService, ExecutionResult>(s => s.ReleaseAsync(ExecutorA, released.Execution.Id, "not now"));
+        _harness.Clock.Advance(TimeSpan.FromSeconds(61));
+
+        var mine = await _harness.Run<ExecutionService, IReadOnlyList<ExecutionResult>>(s => s.ListActiveAsync(ExecutorA, $"https://{repoA.RemoteUrl}.git"));
+
+        var only = Assert.Single(mine);
+        Assert.Equal(held.Execution.Id, only.Execution.Id);
+        Assert.Equal(held.WorkItem.Id, only.WorkItem.Id);
+        Assert.Equal(repoA.Key, only.WorkItem.Repository);
+    }
+
+    [Fact]
     public async Task Roles_and_execution_ownership_are_enforced()
     {
         var repository = await _harness.RegisterRepositoryAsync();

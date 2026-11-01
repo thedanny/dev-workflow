@@ -60,6 +60,8 @@ All ports bind to 127.0.0.1. Logs are JSON on stdout (`docker compose logs -f ap
 
 Repository provider tokens in `.env` are optional. Without them, pull requests that agents report are stored unverified. With them, the server checks reported pull requests on GitHub or Bitbucket and keeps their status current. Use read-only tokens.
 
+To have Claude Code or Codex work the queue in one of your repositories, install the executor skill and connect the agent to the MCP server as described in [agents/README.md](agents/README.md).
+
 See AGENTS.md for build, test and migration commands.
 
 ## Safety

@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex, and others) working in this r
 
 ## Current state
 
-Milestones 1 to 5 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, GitHub and Bitbucket adapters that verify reported pull requests, and a Docker Compose stack with sample data. The local agent skill comes next. Before adding features, read in this order:
+Milestones 1 to 6 are done. The solution has a domain model, PostgreSQL persistence, application services, an authenticated HTTP API under `/api/v1`, an MCP server at `/mcp` with the same operations as tools, GitHub and Bitbucket adapters that verify reported pull requests, a Docker Compose stack with sample data, and a local executor skill for Claude Code and Codex. Demonstrating the acceptance tests comes next. Before adding features, read in this order:
 
 1. `docs/phase1-spec.md` – the Phase 1 technical spec (core model, lifecycle, API/MCP contract, acceptance criteria)
 2. `docs/architecture.md` – runtime separation, approval policy, extensibility
@@ -79,6 +79,7 @@ The API host refreshes open pull requests every `PullRequests__SyncIntervalSecon
 - The API host runs `LeaseExpiryWorker`, which requeues work whose lease expired. `Leases__SweepIntervalSeconds` sets the interval, and 0 disables it. Claims also expire a stale lease inline.
 - Provider access goes through `IRepositoryClientFactory`, which binds an `IRepositoryClient` to one repository and its credential, or returns null when none is configured. Services must handle the null case by skipping verification, never by failing. The adapters live in `src/DevWorkflow.Infrastructure/Providers`. Provider failures become `ErrorKind.Unavailable` (HTTP 502) with codes such as `provider_unavailable`, and messages never include a credential.
 - Never add merge, approve, deploy or branch-protection operations to `IRepositoryClient`. A test fails if one appears.
+- The local executor skill is `agents/skills/dev-workflow-executor/SKILL.md`, installed into other repositories' agents as described in `agents/README.md`. It is written for agents working in those repositories, not this one. `AgentSkillTests` fails if the skill misses an executor tool or names a tool an executor can't call, so update the skill when the executor tools change.
 - Provider tests use the in-memory fakes in `tests/DevWorkflow.Tests/Providers/FakeProviders.cs`, wired with `UseFakeProviders`. Tests never call a real provider.
 
 ## Solution conventions
@@ -116,7 +117,7 @@ Implementation milestones (from `docs/build-prompt.md`): scaffold solution → P
 - **Audit is append-only.** Every state change and authorization decision is recorded as an Evidence/Activity event with references to originating systems.
 - **Signals come in through one intake interface.** Listeners for any source submit raw signals idempotently. Signals are append-only, redacted before storage, and never become executable work directly; a proposed work item links back to its signals. Listener, evaluator, executor, and approver credentials are separate roles.
 - **Work is routed to one repository.** Each work item targets exactly one registered repository and cannot be approved without one. An executor identifies its repository from its git remote and only lists and claims work for that repository; a mismatched claim is rejected. Cross-repository work is split into linked items.
-- **The MCP and API expose the same contract:** `list_approved_work`, `get_work_item`, `claim_work_item`, `heartbeat_execution`, `update_execution`, `report_pull_request`, `release_claim`. Return structured validation and conflict errors.
+- **The MCP and API expose the same contract:** `list_approved_work`, `list_my_executions`, `get_work_item`, `claim_work_item`, `heartbeat_execution`, `update_execution`, `report_pull_request`, `release_claim`. Return structured validation and conflict errors.
 - **Repository adapters** sit behind interfaces: resolve repo, branch, push, open PR, get PR status. Bitbucket has no GitHub Actions; do not assume CI shape. Credentials are scoped per provider and per repository.
 
 ## Hard boundaries (do not relax these)

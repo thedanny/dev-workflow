@@ -52,6 +52,36 @@ public sealed class ExecutionService(
         return [.. items.Select(i => WorkItemDto.From(i, own.Key))];
     }
 
+    /// <summary>
+    /// The caller's executions in its repository whose lease is still live, oldest first.
+    /// An agent that restarted uses this to resume its own work instead of claiming more.
+    /// </summary>
+    public async Task<IReadOnlyList<ExecutionResult>> ListActiveAsync(
+        Caller caller,
+        string repository,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        caller.Require(CallerRole.Executor);
+
+        var own = await repositories.ResolveAsync(repository, cancellationToken);
+        var now = clock.GetUtcNow();
+        var executions = await db.Executions.AsNoTracking()
+            .Where(e => e.ClaimedBy == caller.Name && e.State == ExecutionState.Active && e.LeaseExpiresAt > now)
+            .Where(e => db.WorkItems.Any(w => w.Id == e.WorkItemId && w.RepositoryId == own.Id))
+            .OrderBy(e => e.StartedAt)
+            .Take(Limits.PageSize(null))
+            .ToListAsync(cancellationToken);
+
+        var workItemIds = executions.Select(e => e.WorkItemId).ToList();
+        var items = await db.WorkItems.AsNoTracking()
+            .Include(w => w.SignalLinks)
+            .Where(w => workItemIds.Contains(w.Id))
+            .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+        return [.. executions.Select(e => new ExecutionResult(ExecutionDto.From(e), WorkItemDto.From(items[e.WorkItemId], own.Key)))];
+    }
+
     public async Task<ExecutionResult> ClaimAsync(
         Caller caller,
         Guid workItemId,
